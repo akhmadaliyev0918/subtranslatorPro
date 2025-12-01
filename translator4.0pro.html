@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="uz" class="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Subtitle Translator Pro</title>
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%233b82f6'/><text x='50' y='68' font-size='60' text-anchor='middle' fill='white' font-family='Inter, Arial'>S+</text></svg>">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            text: '#f1f5f9'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- JSZip for downloading multiple files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver for saving ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .drag-area-highlight {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+        }
+        .dark .drag-area-highlight {
+            background-color: #1e293b;
+            border-color: #60a5fa;
+        }
+
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .dark .glass-effect {
+            background: rgba(30, 41, 59, 0.95);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 dark:bg-dark-bg dark:text-dark-text transition-colors duration-300 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="glass-effect sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2">
+                    <div class="bg-blue-600 text-white p-1.5 rounded-lg">
+                        <i class="ph ph-translate text-2xl"></i>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight">AI Subtitle Pro</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="history-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Tarix">
+                        <i class="ph ph-clock-counter-clockwise text-xl"></i>
+                    </button>
+                    <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Tungi rejim">
+                        <i class="ph ph-moon text-xl dark:hidden"></i>
+                        <i class="ph ph-sun text-xl hidden dark:block text-yellow-400"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-5xl">
+        
+        <div class="bg-white dark:bg-dark-card rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700 transition-colors duration-300">
+            
+            <!-- Progress Steps -->
+            <div class="bg-gray-50 dark:bg-gray-800/50 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center text-sm font-medium">
+                <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <span class="bg-blue-100 dark:bg-blue-900/30 w-6 h-6 flex items-center justify-center rounded-full">1</span>
+                    <span>Yuklash</span>
+                </div>
+                <div class="h-px w-12 bg-gray-300 dark:bg-gray-600"></div>
+                <div class="flex items-center gap-2 text-gray-500 dark:text-gray-400" id="step-indicator-2">
+                    <span class="bg-gray-200 dark:bg-gray-700 w-6 h-6 flex items-center justify-center rounded-full">2</span>
+                    <span>Sozlamalar</span>
+                </div>
+                <div class="h-px w-12 bg-gray-300 dark:bg-gray-600"></div>
+                <div class="flex items-center gap-2 text-gray-500 dark:text-gray-400" id="step-indicator-3">
+                    <span class="bg-gray-200 dark:bg-gray-700 w-6 h-6 flex items-center justify-center rounded-full">3</span>
+                    <span>Natija</span>
+                </div>
+            </div>
+
+            <div class="p-6 md:p-8 space-y-8">
+
+                <!-- SECTION 1: Upload & Queue -->
+                <div id="upload-section" class="space-y-6">
+                    <div id="drag-drop-area" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group">
+                        <div class="bg-blue-100 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                            <i class="ph ph-upload-simple text-3xl text-blue-600 dark:text-blue-400"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Fayllarni yuklash</h3>
+                        <p class="text-gray-500 dark:text-gray-400 mt-2">SRT, VTT yoki TXT fayllarni shu yerga tashlang</p>
+                        <p class="text-xs text-gray-400 mt-1">Bir vaqtning o'zida bir nechta fayl yuklashingiz mumkin</p>
+                        <input type="file" id="file-input" class="hidden" accept=".srt,.vtt,.txt" multiple>
+                    </div>
+
+                    <!-- File Queue List -->
+                    <div id="file-queue" class="hidden space-y-3">
+                        <h4 class="font-semibold text-gray-700 dark:text-gray-300 flex justify-between items-center">
+                            <span>Yuklangan fayllar (<span id="file-count">0</span>)</span>
+                            <button id="clear-queue-btn" class="text-xs text-red-500 hover:text-red-600 font-medium">Barchasini tozalash</button>
+                        </h4>
+                        <div id="file-list-container" class="max-h-60 overflow-y-auto space-y-2 pr-2">
+                            <!-- File items will be injected here -->
+                        </div>
+                        <div class="flex justify-end mt-4">
+                             <button id="to-settings-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-lg shadow-blue-600/20">
+                                Davom etish <i class="ph ph-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: Settings -->
+                <div id="settings-section" class="hidden space-y-6">
+                    <button id="back-to-upload" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1 text-sm mb-2">
+                        <i class="ph ph-arrow-left"></i> Ortga qaytish
+                    </button>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Languages -->
+                        <div class="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                            <h3 class="font-semibold text-lg flex items-center gap-2">
+                                <i class="ph ph-globe text-blue-600"></i> Til sozlamalari
+                            </h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Qaysi tildan</label>
+                                    <select id="source-lang" class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <option value="English" selected>Ingliz</option>
+                                        <option value="Russian">Rus</option>
+                                        <option value="Uzbek">O'zbek</option>
+                                        <option value="Spanish">Ispan</option>
+                                        <option value="French">Fransuz</option>
+                                        <option value="German">Nemis</option>
+                                        <option value="Turkish">Turk</option>
+                                        <option value="Korean">Koreys</option>
+                                        <option value="Japanese">Yapon</option>
+                                        <option value="Chinese">Xitoy</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Qaysi tilga</label>
+                                    <select id="target-lang" class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <option value="Uzbek" selected>O'zbek</option>
+                                        <option value="Russian">Rus</option>
+                                        <option value="English">Ingliz</option>
+                                        <option value="Spanish">Ispan</option>
+                                        <option value="French">Fransuz</option>
+                                        <option value="German">Nemis</option>
+                                        <option value="Turkish">Turk</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Options -->
+                        <div class="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                            <h3 class="font-semibold text-lg flex items-center gap-2">
+                                <i class="ph ph-sliders text-purple-600"></i> Qo'shimcha
+                            </h3>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">AI uchun maxsus buyruq (Ixtiyoriy)</label>
+                                <textarea id="custom-prompt" rows="2" placeholder="Masalan: Rasmiy tilda tarjima qil. Ismlarni o'zgartirma." class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 focus:ring-2 focus:ring-purple-500 outline-none text-sm"></textarea>
+                            </div>
+                             <div class="flex items-center gap-2">
+                                <input type="checkbox" id="remove-sdh" class="rounded text-blue-600 focus:ring-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                                <label for="remove-sdh" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                                    SDH tavsiflarni olib tashlash (masalan: [music], (kulgi))
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Start Button -->
+                    <button id="start-translate-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                        <i class="ph ph-lightning text-xl"></i> Tarjimani Boshlash
+                    </button>
+                </div>
+
+                <!-- SECTION 3: Processing & Results -->
+                <div id="results-section" class="hidden space-y-6">
+                    
+                    <!-- Overall Progress -->
+                    <div id="processing-status" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-6 rounded-xl text-center space-y-4">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 dark:border-gray-700 h-12 w-12 mx-auto"></div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-blue-800 dark:text-blue-300">Jarayon ketmoqda...</h3>
+                            <p class="text-sm text-blue-600 dark:text-blue-400 mt-1" id="global-progress-text">Fayllar tahlil qilinmoqda</p>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 max-w-md mx-auto overflow-hidden">
+                            <div id="global-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Results List -->
+                    <div id="completed-files-container" class="space-y-4 hidden">
+                        <div class="flex justify-between items-end">
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">Natijalar</h3>
+                            <button id="download-all-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md transition-colors">
+                                <i class="ph ph-file-archive"></i> Barchasini ZIP yuklash
+                            </button>
+                        </div>
+                        
+                        <div id="results-list" class="grid grid-cols-1 gap-4">
+                            <!-- Result Items Injected Here -->
+                        </div>
+                        
+                        <button id="new-translation-btn" class="w-full py-3 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors mt-6">
+                            Yangi tarjima boshlash
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="text-center mt-8 text-sm text-gray-500 dark:text-gray-500">
+            <p>&copy; 2025 AI Subtitle Pro. Powered by Google Gemini.</p>
+        </footer>
+    </main>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="fixed inset-0 z-[60] hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="close-modal-bg"></div>
+        <div class="absolute inset-4 md:inset-10 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="ph ph-eye text-blue-600"></i> <span id="preview-filename">Fayl nomi</span>
+                </h3>
+                <button id="close-modal-btn" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                    <i class="ph ph-x text-xl"></i>
+                </button>
+            </div>
+            <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
+                <!-- Original -->
+                <div class="flex-1 flex flex-col border-r border-gray-200 dark:border-gray-700 h-1/2 md:h-auto">
+                    <div class="p-2 bg-gray-100 dark:bg-gray-800 text-xs font-bold uppercase tracking-wider text-center text-gray-500">Original</div>
+                    <textarea id="preview-original" class="flex-grow w-full p-4 resize-none focus:outline-none bg-white dark:bg-dark-bg text-sm font-mono dark:text-gray-300" readonly></textarea>
+                </div>
+                <!-- Translated -->
+                <div class="flex-1 flex flex-col h-1/2 md:h-auto">
+                    <div class="p-2 bg-blue-50 dark:bg-blue-900/20 text-xs font-bold uppercase tracking-wider text-center text-blue-600 dark:text-blue-400">Tarjima</div>
+                    <textarea id="preview-translated" class="flex-grow w-full p-4 resize-none focus:outline-none bg-white dark:bg-dark-bg text-sm font-mono dark:text-gray-300" readonly></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end gap-3">
+                <button id="copy-preview-btn" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
+                    Nusxa olish
+                </button>
+                <button id="download-preview-btn" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">
+                    Yuklab olish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="close-history-bg"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md z-10 overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg">Tarjimalar Tarixi</h3>
+                <button id="close-history-btn" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                    <i class="ph ph-x text-lg"></i>
+                </button>
+            </div>
+            <div id="history-list" class="flex-grow overflow-y-auto p-4 space-y-3">
+                <p class="text-center text-gray-500 dark:text-gray-400 text-sm py-8">Hozircha tarix bo'sh</p>
+            </div>
+            <div class="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <button id="clear-history-btn" class="w-full text-red-500 text-sm hover:underline">Tarixni tozalash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 z-50 max-w-md">
+        <div class="bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-200 p-4 rounded shadow-lg flex items-start gap-3">
+            <i class="ph ph-warning-circle text-xl mt-0.5"></i>
+            <div>
+                <strong class="font-bold block">Xatolik!</strong>
+                <span id="toast-message" class="text-sm">Nimadir noto'g'ri ketdi.</span>
+            </div>
+            <button onclick="hideToast()" class="ml-auto text-red-500 hover:text-red-700"><i class="ph ph-x"></i></button>
+        </div>
+    </div>
+
+    <script>
+        // --- Constants & State ---
+        const SUBTITLE_SEPARATOR = "|||";
+        let filesQueue = []; // Array of { id, file, status ('pending', 'processing', 'done', 'error'), originalText, translatedText, stats: {words: 0} }
+        let isProcessing = false;
+
+        // --- Elements ---
+        const dragDropArea = document.getElementById('drag-drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileQueueEl = document.getElementById('file-queue');
+        const fileListContainer = document.getElementById('file-list-container');
+        
+        const uploadSection = document.getElementById('upload-section');
+        const settingsSection = document.getElementById('settings-section');
+        const resultsSection = document.getElementById('results-section');
+        
+        const toSettingsBtn = document.getElementById('to-settings-btn');
+        const backToUploadBtn = document.getElementById('back-to-upload');
+        const startTranslateBtn = document.getElementById('start-translate-btn');
+        
+        const step2Indicator = document.getElementById('step-indicator-2');
+        const step3Indicator = document.getElementById('step-indicator-3');
+
+        const resultsList = document.getElementById('results-list');
+        const completedFilesContainer = document.getElementById('completed-files-container');
+        const processingStatus = document.getElementById('processing-status');
+        const globalProgressBar = document.getElementById('global-progress-bar');
+        const globalProgressText = document.getElementById('global-progress-text');
+
+        // --- Theme Handling ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlEl = document.documentElement;
+
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                htmlEl.classList.add('dark');
+            } else {
+                htmlEl.classList.remove('dark');
+            }
+        }
+        initTheme();
+
+        themeToggleBtn.addEventListener('click', () => {
+            htmlEl.classList.toggle('dark');
+            localStorage.theme = htmlEl.classList.contains('dark') ? 'dark' : 'light';
+        });
+
+        // --- File Upload Handling ---
+        dragDropArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, () => dragDropArea.classList.add('drag-area-highlight'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, () => dragDropArea.classList.remove('drag-area-highlight'), false);
+        });
+
+        dragDropArea.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+
+        function handleFiles(fileList) {
+            if (!fileList.length) return;
+            
+            Array.from(fileList).forEach(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (['srt', 'vtt', 'txt'].includes(ext)) {
+                    const id = Date.now() + Math.random().toString(36).substring(2, 9);
+                    filesQueue.push({
+                        id,
+                        file,
+                        status: 'pending',
+                        originalText: null,
+                        translatedText: null,
+                        error: null
+                    });
+                } else {
+                    showToast(`"${file.name}" qo'llab-quvvatlanmaydigan format. Faqat .srt, .vtt, .txt`);
+                }
+            });
+            updateFileQueueUI();
+        }
+
+        function updateFileQueueUI() {
+            document.getElementById('file-count').textContent = filesQueue.length;
+            
+            if (filesQueue.length > 0) {
+                fileQueueEl.classList.remove('hidden');
+                dragDropArea.classList.add('py-6', 'border-blue-200'); // Make upload area smaller
+                dragDropArea.classList.remove('p-10');
+                
+                fileListContainer.innerHTML = filesQueue.map(item => `
+                    <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg flex justify-between items-center border border-gray-200 dark:border-gray-700 transition-all hover:border-blue-300">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 p-2 rounded">
+                                <i class="ph ph-file-text text-lg"></i>
+                            </div>
+                            <div class="truncate">
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate max-w-[200px]">${item.file.name}</p>
+                                <p class="text-xs text-gray-500">${formatBytes(item.file.size)}</p>
+                            </div>
+                        </div>
+                        <button onclick="removeFile('${item.id}')" class="text-gray-400 hover:text-red-500 transition-colors p-1">
+                            <i class="ph ph-trash text-lg"></i>
+                        </button>
+                    </div>
+                `).join('');
+            } else {
+                fileQueueEl.classList.add('hidden');
+                dragDropArea.classList.remove('py-6', 'border-blue-200');
+                dragDropArea.classList.add('p-10');
+                fileListContainer.innerHTML = '';
+            }
+        }
+
+        window.removeFile = (id) => {
+            filesQueue = filesQueue.filter(f => f.id !== id);
+            updateFileQueueUI();
+        };
+
+        document.getElementById('clear-queue-btn').addEventListener('click', () => {
+            filesQueue = [];
+            updateFileQueueUI();
+        });
+
+        // --- Navigation & Steps ---
+        toSettingsBtn.addEventListener('click', async () => {
+            if (filesQueue.length === 0) return;
+            
+            // Pre-read files
+            for (let item of filesQueue) {
+                try {
+                    item.originalText = await readFileAsText(item.file);
+                } catch (e) {
+                    item.status = 'error';
+                    item.error = "O'qishda xatolik";
+                }
+            }
+
+            uploadSection.classList.add('hidden');
+            settingsSection.classList.remove('hidden');
+            updateStepIndicator(2);
+        });
+
+        backToUploadBtn.addEventListener('click', () => {
+            settingsSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            updateStepIndicator(1);
+        });
+
+        function updateStepIndicator(step) {
+            const step2Txt = step2Indicator;
+            const step3Txt = step3Indicator;
+            
+            if (step >= 2) {
+                step2Txt.classList.remove('text-gray-500', 'dark:text-gray-400');
+                step2Txt.classList.add('text-blue-600', 'dark:text-blue-400');
+                step2Txt.querySelector('span').classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+                step2Txt.querySelector('span').classList.remove('bg-gray-200', 'dark:bg-gray-700');
+            } else {
+                step2Txt.classList.add('text-gray-500', 'dark:text-gray-400');
+                step2Txt.classList.remove('text-blue-600', 'dark:text-blue-400');
+                step2Txt.querySelector('span').classList.remove('bg-blue-100', 'dark:bg-blue-900/30');
+                step2Txt.querySelector('span').classList.add('bg-gray-200', 'dark:bg-gray-700');
+            }
+
+            if (step >= 3) {
+                step3Txt.classList.remove('text-gray-500', 'dark:text-gray-400');
+                step3Txt.classList.add('text-blue-600', 'dark:text-blue-400');
+                step3Txt.querySelector('span').classList.add('bg-blue-100', 'dark:bg-blue-900/30');
+                step3Txt.querySelector('span').classList.remove('bg-gray-200', 'dark:bg-gray-700');
+            }
+        }
+
+        // --- Translation Logic ---
+        startTranslateBtn.addEventListener('click', startBatchTranslation);
+
+        async function startBatchTranslation() {
+            const sourceLang = document.getElementById('source-lang').value;
+            const targetLang = document.getElementById('target-lang').value;
+            const customPrompt = document.getElementById('custom-prompt').value;
+            const removeSDH = document.getElementById('remove-sdh').checked;
+
+            if (sourceLang === targetLang) {
+                showToast("Manba va maqsad tillari bir xil bo'lmasligi kerak");
+                return;
+            }
+
+            settingsSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            updateStepIndicator(3);
+            processingStatus.classList.remove('hidden');
+            completedFilesContainer.classList.add('hidden');
+
+            let completedCount = 0;
+            const totalFiles = filesQueue.length;
+
+            for (let i = 0; i < totalFiles; i++) {
+                const item = filesQueue[i];
+                item.status = 'processing';
+                
+                // Update UI Status
+                globalProgressText.textContent = `Tarjima qilinmoqda (${i + 1}/${totalFiles}): ${item.file.name}`;
+                const progressPercent = ((i) / totalFiles) * 100;
+                globalProgressBar.style.width = `${progressPercent}%`;
+
+                try {
+                    // Check for empty content
+                    if(!item.originalText || !item.originalText.trim()) throw new Error("Fayl bo'sh");
+
+                    const parsed = parseSubtitles(item.originalText);
+                    // SDH Cleaning if requested (on original text structure before translation logic)
+                    if (removeSDH) {
+                         parsed.forEach(p => {
+                             if(p.text) {
+                                 p.text = p.text.replace(/\[.*?\]|\(.*?\)/g, '').trim();
+                             }
+                         });
+                    }
+
+                    const translatedParsed = await translateSubtitlesWithProgress(parsed, sourceLang, targetLang, customPrompt, (current, total) => {
+                         const filePercent = (current / total) * (100 / totalFiles);
+                         globalProgressBar.style.width = `${progressPercent + filePercent}%`;
+                    });
+
+                    item.translatedText = reconstructSubtitles(translatedParsed, item.originalText, item.file.name);
+                    item.status = 'done';
+                    item.stats = {
+                        words: item.translatedText.split(/\s+/).length
+                    };
+                    
+                    // Save to History
+                    saveToHistory(item.file.name, sourceLang, targetLang);
+
+                } catch (error) {
+                    console.error(error);
+                    item.status = 'error';
+                    item.error = error.message;
+                }
+
+                completedCount++;
+            }
+
+            globalProgressBar.style.width = '100%';
+            globalProgressText.textContent = "Barcha jarayonlar yakunlandi!";
+            
+            setTimeout(() => {
+                processingStatus.classList.add('hidden');
+                completedFilesContainer.classList.remove('hidden');
+                renderResults();
+            }, 800);
+        }
+
+        async function translateSubtitlesWithProgress(subtitles, source, target, prompt, onProgress) {
+            const validSubs = subtitles.filter(s => !s.isHeader && !s.isMalformed && s.text);
+            const BATCH_SIZE = 25; 
+            
+            let processed = 0;
+            
+            for (let i = 0; i < validSubs.length; i += BATCH_SIZE) {
+                const batch = validSubs.slice(i, i + BATCH_SIZE);
+                const batchText = batch.map(s => s.text).join(` ${SUBTITLE_SEPARATOR} `);
+                
+                let retries = 0;
+                let success = false;
+                
+                while(retries < 3 && !success) {
+                    try {
+                        const translatedBatch = await callGeminiAPI(batchText, source, target, batch.length, prompt);
+                        
+                        let snippets = translatedBatch.split(SUBTITLE_SEPARATOR).map(t => t.trim());
+                        
+                        // Clean artifacts
+                        if (snippets.length > batch.length && snippets[snippets.length-1] === "") snippets.pop();
+                        if (snippets.length > batch.length && snippets[0] === "") snippets.shift();
+
+                        if (snippets.length !== batch.length) {
+                             // Fallback: try to map anyway or fill blanks
+                             if(snippets.length < batch.length) {
+                                 while(snippets.length < batch.length) snippets.push("[Tarjima Xatosi]");
+                             } else {
+                                 snippets = snippets.slice(0, batch.length);
+                             }
+                        }
+
+                        batch.forEach((sub, idx) => sub.text = snippets[idx]);
+                        success = true;
+                    } catch (e) {
+                        console.warn("Batch retry", e);
+                        retries++;
+                        await new Promise(r => setTimeout(r, 2000 * retries));
+                    }
+                }
+
+                if (!success) {
+                    batch.forEach(sub => sub.text = sub.text + " [Tarjima Xatosi]");
+                }
+
+                processed += batch.length;
+                onProgress(processed, validSubs.length);
+            }
+            
+            return subtitles;
+        }
+
+        async function callGeminiAPI(text, source, target, count, customPrompt) {
+            const apiKey = "AIzaSyDaAeZVNAkNRuOB50cDiY8OJQeewmAjP1A"; // Runtime injected
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const instruction = `
+            You are a professional translator. Translate subtitles from ${source} to ${target}.
+            ${customPrompt ? `Custom Instruction: ${customPrompt}` : ''}
+            
+            Strict Format Rules:
+            1. Input segments separated by " ${SUBTITLE_SEPARATOR} ".
+            2. Output EXACTLY ${count} segments separated by "${SUBTITLE_SEPARATOR}".
+            3. Preserve formatting. Do not translate delimiters.
+            4. Return ONLY the translated string.
+            `;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: text }] }],
+                    systemInstruction: { parts: [{ text: instruction }] },
+                    generationConfig: { temperature: 0.3 }
+                })
+            });
+            
+            if(!response.ok) throw new Error("API Error " + response.status);
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+
+        // --- Parsers & Generators ---
+        function parseSubtitles(content) {
+            content = content.replace(/\r\n/g, '\n');
+            const blocks = content.trim().split(/\n\n+/);
+            return blocks.map(block => {
+                const lines = block.split('\n');
+                if (lines[0].trim().startsWith('WEBVTT')) return { text: block, isHeader: true };
+                
+                if (lines.length >= 2 && lines[1].includes('-->')) { // SRT
+                    return { index: lines[0], timestamp: lines[1], text: lines.slice(2).join('\n') };
+                } else if (lines.length >= 1 && lines[0].includes('-->')) { // VTT
+                    return { timestamp: lines[0], text: lines.slice(1).join('\n') };
+                }
+                return { text: block, isMalformed: true }; // Plain txt
+            });
+        }
+
+        function reconstructSubtitles(subtitles, originalContent, filename) {
+            const isVTT = filename.toLowerCase().endsWith('.vtt') || originalContent.startsWith('WEBVTT');
+            let output = isVTT && !subtitles[0].isHeader ? "WEBVTT\n\n" : "";
+            
+            return output + subtitles.map(s => {
+                if (s.isHeader || s.isMalformed) return s.text;
+                let b = "";
+                if (s.index) b += `${s.index}\n`;
+                if (s.timestamp) b += `${s.timestamp}\n`;
+                b += s.text;
+                return b;
+            }).join('\n\n');
+        }
+
+        // --- Results UI ---
+        function renderResults() {
+            resultsList.innerHTML = filesQueue.map(item => {
+                const statusColor = item.status === 'done' ? 'text-green-600 bg-green-100 dark:bg-green-900/30' : 'text-red-600 bg-red-100 dark:bg-red-900/30';
+                const statusIcon = item.status === 'done' ? 'ph-check-circle' : 'ph-x-circle';
+                
+                return `
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="${statusColor} p-2 rounded-full">
+                            <i class="ph ${statusIcon} text-xl"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <h4 class="font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[200px]">${item.file.name}</h4>
+                            ${item.status === 'done' ? `<p class="text-xs text-gray-500">${item.stats.words} ta so'z • ~${Math.ceil(item.stats.words/200)} daqiqa</p>` : `<p class="text-xs text-red-500">${item.error}</p>`}
+                        </div>
+                    </div>
+                    <div class="flex gap-2 w-full sm:w-auto justify-end">
+                        ${item.status === 'done' ? `
+                        <button onclick="previewFile('${item.id}')" class="px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                            <i class="ph ph-eye"></i> Ko'rish
+                        </button>
+                        <button onclick="downloadFile('${item.id}')" class="px-3 py-2 text-sm font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+                            <i class="ph ph-download-simple"></i> Yuklash
+                        </button>
+                        ` : ''}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // --- Preview & Download Handlers ---
+        window.previewFile = (id) => {
+            const item = filesQueue.find(f => f.id === id);
+            if (!item) return;
+
+            document.getElementById('preview-filename').textContent = item.file.name;
+            document.getElementById('preview-original').value = item.originalText;
+            document.getElementById('preview-translated').value = item.translatedText;
+            
+            document.getElementById('preview-modal').classList.remove('hidden');
+            
+            // Bind modal download btn
+            const dlBtn = document.getElementById('download-preview-btn');
+            const newDlBtn = dlBtn.cloneNode(true);
+            dlBtn.parentNode.replaceChild(newDlBtn, dlBtn);
+            newDlBtn.addEventListener('click', () => downloadFile(id));
+        };
+
+        window.downloadFile = (id) => {
+            const item = filesQueue.find(f => f.id === id);
+            if (!item || !item.translatedText) return;
+            
+            const blob = new Blob([item.translatedText], { type: 'text/plain;charset=utf-8' });
+            saveAs(blob, `translated_${item.file.name}`);
+        };
+
+        document.getElementById('download-all-btn').addEventListener('click', () => {
+            const zip = new JSZip();
+            let count = 0;
+            
+            filesQueue.forEach(item => {
+                if (item.status === 'done' && item.translatedText) {
+                    zip.file(`translated_${item.file.name}`, item.translatedText);
+                    count++;
+                }
+            });
+
+            if (count > 0) {
+                zip.generateAsync({type:"blob"}).then(function(content) {
+                    saveAs(content, "translated_subtitles.zip");
+                });
+            } else {
+                showToast("Yuklab olish uchun fayllar yo'q");
+            }
+        });
+
+        document.getElementById('new-translation-btn').addEventListener('click', () => {
+            filesQueue = [];
+            updateFileQueueUI();
+            updateStepIndicator(1);
+            resultsSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+        });
+
+        // --- Utils ---
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+        
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('opacity-0', 'translate-y-20');
+            setTimeout(() => hideToast(), 3000);
+        }
+        
+        window.hideToast = () => {
+            const toast = document.getElementById('toast');
+            toast.classList.add('opacity-0', 'translate-y-20');
+        }
+
+        // --- History Logic ---
+        const historyModal = document.getElementById('history-modal');
+        const historyList = document.getElementById('history-list');
+        
+        document.getElementById('history-btn').addEventListener('click', () => {
+            renderHistory();
+            historyModal.classList.remove('hidden');
+        });
+        
+        document.getElementById('close-history-btn').addEventListener('click', () => historyModal.classList.add('hidden'));
+        document.getElementById('close-history-bg').addEventListener('click', () => historyModal.classList.add('hidden'));
+        
+        function saveToHistory(filename, from, to) {
+            const history = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+            history.unshift({
+                filename, from, to, date: new Date().toLocaleString()
+            });
+            if(history.length > 20) history.pop(); // Keep last 20
+            localStorage.setItem('translationHistory', JSON.stringify(history));
+        }
+        
+        function renderHistory() {
+            const history = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+            if(history.length === 0) {
+                historyList.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 text-sm py-8">Hozircha tarix bo\'sh</p>';
+                return;
+            }
+            
+            historyList.innerHTML = history.map(h => `
+                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="flex justify-between items-start">
+                        <span class="font-medium text-sm text-gray-800 dark:text-white truncate max-w-[180px]">${h.filename}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">${h.date}</span>
+                    </div>
+                    <div class="mt-1 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+                        <span>${h.from}</span> <i class="ph ph-arrow-right"></i> <span>${h.to}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        document.getElementById('clear-history-btn').addEventListener('click', () => {
+            localStorage.removeItem('translationHistory');
+            renderHistory();
+        });
+
+        // Modal Logic
+        document.getElementById('close-modal-btn').addEventListener('click', () => document.getElementById('preview-modal').classList.add('hidden'));
+        document.getElementById('close-modal-bg').addEventListener('click', () => document.getElementById('preview-modal').classList.add('hidden'));
+        
+        document.getElementById('copy-preview-btn').addEventListener('click', () => {
+            const text = document.getElementById('preview-translated').value;
+            navigator.clipboard.writeText(text);
+            showToast("Nusxa olindi!");
+        });
+
+    </script>
+</body>
+</html>
